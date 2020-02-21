@@ -2,8 +2,8 @@ import subprocess
 import numpy as np
 import ffmpeg
 from pathlib import Path
-from core import pathex
-from core.interact import interact as io
+from utils import Path_utils
+from interact import interact as io
 
 def extract_video(input_file, output_dir, output_ext=None, fps=None):
     input_file_path = Path(input_file)
@@ -14,22 +14,22 @@ def extract_video(input_file, output_dir, output_ext=None, fps=None):
 
 
     if input_file_path.suffix == '.*':
-        input_file_path = pathex.get_first_file_by_stem (input_file_path.parent, input_file_path.stem)
+        input_file_path = Path_utils.get_first_file_by_stem (input_file_path.parent, input_file_path.stem)
     else:
         if not input_file_path.exists():
             input_file_path = None
 
     if input_file_path is None:
-        io.log_err("input_file not found.")
+        io.log_err("未找到输入目录")
         return
 
     if fps is None:
-        fps = io.input_int ("Enter FPS", 0, help_message="How many frames of every second of the video will be extracted. 0 - full fps")
+        fps = io.input_int ("输入帧 ( ?:帮助 默认:0 ) : ", 0, help_message="每秒钟会提取多少帧视频")
 
     if output_ext is None:
-        output_ext = io.input_str ("Output image format", "png", ["png","jpg"], help_message="png is lossless, but extraction is x10 slower for HDD, requires x10 more disk space than jpg.")
+        output_ext = io.input_str ("输出图像格式? ( jpg png ?:帮助 默认:png ) : ", "png", ["png","jpg"], help_message="png是无损的，但提取HDD的速度要慢10倍，需要的磁盘空间比jpg大10倍")
 
-    for filename in pathex.get_image_paths (output_path, ['.'+output_ext]):
+    for filename in Path_utils.get_image_paths (output_path, ['.'+output_ext]):
         Path(filename).unlink()
 
     job = ffmpeg.input(str(input_file_path))
@@ -46,7 +46,7 @@ def extract_video(input_file, output_dir, output_ext=None, fps=None):
     try:
         job = job.run()
     except:
-        io.log_err ("ffmpeg fail, job commandline:" + str(job.compile()) )
+        io.log_err ("ffmpeg失败，作业命令行:" + str(job.compile()) )
 
 def cut_video ( input_file, from_time=None, to_time=None, audio_track_id=None, bitrate=None):
     input_file_path = Path(input_file)
@@ -57,16 +57,16 @@ def cut_video ( input_file, from_time=None, to_time=None, audio_track_id=None, b
     output_file_path = input_file_path.parent / (input_file_path.stem + "_cut" + input_file_path.suffix)
 
     if from_time is None:
-        from_time = io.input_str ("From time", "00:00:00.000")
+        from_time = io.input_str ("From time (skip: 00:00:00.000) : ", "00:00:00.000")
 
     if to_time is None:
-        to_time = io.input_str ("To time", "00:00:00.000")
+        to_time = io.input_str ("To time (skip: 00:00:00.000) : ", "00:00:00.000")
 
     if audio_track_id is None:
-        audio_track_id = io.input_int ("Specify audio track id.", 0)
+        audio_track_id = io.input_int ("Specify audio track id. ( skip:0 ) : ", 0)
 
     if bitrate is None:
-        bitrate = max (1, io.input_int ("Bitrate of output file in MB/s", 25) )
+        bitrate = max (1, io.input_int ("Bitrate of output file in MB/s ? (default:25) : ", 25) )
 
     kwargs = {"c:v": "libx264",
               "b:v": "%dM" %(bitrate),
@@ -93,19 +93,15 @@ def denoise_image_sequence( input_dir, ext=None, factor=None ):
         return
 
     if ext is None:
-        ext = io.input_str ("Input image format (extension)", "png")
+        ext = io.input_str ("Input image format (extension)? ( default:png ) : ", "png")
 
     if factor is None:
-        factor = np.clip ( io.input_int ("Denoise factor?", 5, add_info="1-20"), 1, 20 )
-
-    kwargs = {}
-    if ext == 'jpg':
-        kwargs.update ({'q:v':'2'})
+        factor = np.clip ( io.input_int ("Denoise factor? (1-20 default:5) : ", 5), 1, 20 )
 
     job = ( ffmpeg
             .input(str ( input_path / ('%5d.'+ext) ) )
             .filter("hqdn3d", factor, factor, 5,5)
-            .output(str ( input_path / ('%5d.'+ext) ), **kwargs )
+            .output(str ( input_path / ('%5d.'+ext) ) )
            )
 
     try:
@@ -113,13 +109,13 @@ def denoise_image_sequence( input_dir, ext=None, factor=None ):
     except:
         io.log_err ("ffmpeg fail, job commandline:" + str(job.compile()) )
 
-def video_from_sequence( input_dir, output_file, reference_file=None, ext=None, fps=None, bitrate=None, include_audio=False, lossless=None ):
+def video_from_sequence( input_dir, output_file, reference_file=None, ext=None, fps=None, bitrate=None, lossless=None ):
     input_path = Path(input_dir)
     output_file_path = Path(output_file)
     reference_file_path = Path(reference_file) if reference_file is not None else None
 
     if not input_path.exists():
-        io.log_err("input_dir not found.")
+        io.log_err("input_dir 未找到.")
         return
 
     if not output_file_path.parent.exists():
@@ -129,23 +125,23 @@ def video_from_sequence( input_dir, output_file, reference_file=None, ext=None, 
     out_ext = output_file_path.suffix
 
     if ext is None:
-        ext = io.input_str ("Input image format (extension)", "png")
+        ext = io.input_str ("输入图像格式(扩展名)? ( 默认:png ) : ", "png")
 
     if lossless is None:
-        lossless = io.input_bool ("Use lossless codec", False)
+        lossless = io.input_bool ("使用无损的编解码器 ? ( 默认:no ) : ", False)
 
     video_id = None
     audio_id = None
     ref_in_a = None
     if reference_file_path is not None:
         if reference_file_path.suffix == '.*':
-            reference_file_path = pathex.get_first_file_by_stem (reference_file_path.parent, reference_file_path.stem)
+            reference_file_path = Path_utils.get_first_file_by_stem (reference_file_path.parent, reference_file_path.stem)
         else:
             if not reference_file_path.exists():
                 reference_file_path = None
 
         if reference_file_path is None:
-            io.log_err("reference_file not found.")
+            io.log_err("reference_file 未找到.")
             return
 
         #probing reference file
@@ -166,18 +162,16 @@ def video_from_sequence( input_dir, output_file, reference_file=None, ext=None, 
 
     if fps is None:
         #if fps not specified and not overwritten by reference-file
-        fps = max (1, io.input_int ("Enter FPS", 25) )
+        fps = max (1, io.input_int ("FPS ? (默认:25) : ", 25) )
 
     if not lossless and bitrate is None:
-        bitrate = max (1, io.input_int ("Bitrate of output file in MB/s", 16) )
+        bitrate = max (1, io.input_int ("输出文件速度 MB/s ? (默认:16) : ", 16) )
 
-    input_image_paths = pathex.get_image_paths(input_path)
-
-    i_in = ffmpeg.input('pipe:', format='image2pipe', r=fps)
+    i_in = ffmpeg.input(str (input_path / ('%5d.'+ext)), r=fps)
 
     output_args = [i_in]
 
-    if include_audio and ref_in_a is not None:
+    if ref_in_a is not None:
         output_args += [ref_in_a]
 
     output_args += [str (output_file_path)]
@@ -185,33 +179,21 @@ def video_from_sequence( input_dir, output_file, reference_file=None, ext=None, 
     output_kwargs = {}
 
     if lossless:
-        output_kwargs.update ({"c:v": "libx264",
-                               "crf": "0",
-                               "pix_fmt": "yuv420p",
+        output_kwargs.update ({"c:v": "png"
                               })
     else:
         output_kwargs.update ({"c:v": "libx264",
                                "b:v": "%dM" %(bitrate),
                                "pix_fmt": "yuv420p",
                               })
-                              
-    if include_audio and ref_in_a is not None:
-        output_kwargs.update ({"c:a": "aac",
-                               "b:a": "192k",
-                               "ar" : "48000"
-                               })
+
+    output_kwargs.update ({"c:a": "aac",
+                           "b:a": "192k",
+                           "ar" : "48000"
+                          })
 
     job = ( ffmpeg.output(*output_args, **output_kwargs).overwrite_output() )
-
     try:
-        job_run = job.run_async(pipe_stdin=True)
-
-        for image_path in input_image_paths:
-            with open (image_path, "rb") as f:
-                image_bytes = f.read()
-                job_run.stdin.write (image_bytes)
-
-        job_run.stdin.close()
-        job_run.wait()
+        job = job.run()
     except:
         io.log_err ("ffmpeg fail, job commandline:" + str(job.compile()) )

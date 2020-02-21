@@ -1,107 +1,33 @@
 import colorsys
-import math
-from enum import IntEnum
-
 import cv2
 import numpy as np
-import numpy.linalg as npla
-
-from core import imagelib
-from core import mathlib
+from enum import IntEnum
+import mathlib
+import imagelib
+from imagelib import IEPolys
+from mathlib.umeyama import umeyama
 from facelib import FaceType
-from core.imagelib import IEPolys
-from core.mathlib.umeyama import umeyama
+import math
 
-landmarks_2D = np.array([
-[ 0.000213256,  0.106454  ], #17
-[ 0.0752622,    0.038915  ], #18
-[ 0.18113,      0.0187482 ], #19
-[ 0.29077,      0.0344891 ], #20
-[ 0.393397,     0.0773906 ], #21
-[ 0.586856,     0.0773906 ], #22
-[ 0.689483,     0.0344891 ], #23
-[ 0.799124,     0.0187482 ], #24
-[ 0.904991,     0.038915  ], #25
-[ 0.98004,      0.106454  ], #26
-[ 0.490127,     0.203352  ], #27
-[ 0.490127,     0.307009  ], #28
-[ 0.490127,     0.409805  ], #29
-[ 0.490127,     0.515625  ], #30
-[ 0.36688,      0.587326  ], #31
-[ 0.426036,     0.609345  ], #32
-[ 0.490127,     0.628106  ], #33
-[ 0.554217,     0.609345  ], #34
-[ 0.613373,     0.587326  ], #35
-[ 0.121737,     0.216423  ], #36
-[ 0.187122,     0.178758  ], #37
-[ 0.265825,     0.179852  ], #38
-[ 0.334606,     0.231733  ], #39
-[ 0.260918,     0.245099  ], #40
-[ 0.182743,     0.244077  ], #41
-[ 0.645647,     0.231733  ], #42
-[ 0.714428,     0.179852  ], #43
-[ 0.793132,     0.178758  ], #44
-[ 0.858516,     0.216423  ], #45
-[ 0.79751,      0.244077  ], #46
-[ 0.719335,     0.245099  ], #47
-[ 0.254149,     0.780233  ], #48
-[ 0.340985,     0.745405  ], #49
-[ 0.428858,     0.727388  ], #50
-[ 0.490127,     0.742578  ], #51
-[ 0.551395,     0.727388  ], #52
-[ 0.639268,     0.745405  ], #53
-[ 0.726104,     0.780233  ], #54
-[ 0.642159,     0.864805  ], #55
-[ 0.556721,     0.902192  ], #56
-[ 0.490127,     0.909281  ], #57
-[ 0.423532,     0.902192  ], #58
-[ 0.338094,     0.864805  ], #59
-[ 0.290379,     0.784792  ], #60
-[ 0.428096,     0.778746  ], #61
-[ 0.490127,     0.785343  ], #62
-[ 0.552157,     0.778746  ], #63
-[ 0.689874,     0.784792  ], #64
-[ 0.553364,     0.824182  ], #65
-[ 0.490127,     0.831803  ], #66
-[ 0.42689 ,     0.824182  ]  #67
-], dtype=np.float32)
+mean_face_x = np.array([
+0.000213256, 0.0752622, 0.18113, 0.29077, 0.393397, 0.586856, 0.689483, 0.799124,
+0.904991, 0.98004, 0.490127, 0.490127, 0.490127, 0.490127, 0.36688, 0.426036,
+0.490127, 0.554217, 0.613373, 0.121737, 0.187122, 0.265825, 0.334606, 0.260918,
+0.182743, 0.645647, 0.714428, 0.793132, 0.858516, 0.79751, 0.719335, 0.254149,
+0.340985, 0.428858, 0.490127, 0.551395, 0.639268, 0.726104, 0.642159, 0.556721,
+0.490127, 0.423532, 0.338094, 0.290379, 0.428096, 0.490127, 0.552157, 0.689874,
+0.553364, 0.490127, 0.42689 ])
 
+mean_face_y = np.array([
+0.106454, 0.038915, 0.0187482, 0.0344891, 0.0773906, 0.0773906, 0.0344891,
+0.0187482, 0.038915, 0.106454, 0.203352, 0.307009, 0.409805, 0.515625, 0.587326,
+0.609345, 0.628106, 0.609345, 0.587326, 0.216423, 0.178758, 0.179852, 0.231733,
+0.245099, 0.244077, 0.231733, 0.179852, 0.178758, 0.216423, 0.244077, 0.245099,
+0.780233, 0.745405, 0.727388, 0.742578, 0.727388, 0.745405, 0.780233, 0.864805,
+0.902192, 0.909281, 0.902192, 0.864805, 0.784792, 0.778746, 0.785343, 0.778746,
+0.784792, 0.824182, 0.831803, 0.824182 ])
 
-landmarks_2D_new = np.array([
-[ 0.000213256,  0.106454  ], #17
-[ 0.0752622,    0.038915  ], #18
-[ 0.18113,      0.0187482 ], #19
-[ 0.29077,      0.0344891 ], #20
-[ 0.393397,     0.0773906 ], #21
-[ 0.586856,     0.0773906 ], #22
-[ 0.689483,     0.0344891 ], #23
-[ 0.799124,     0.0187482 ], #24
-[ 0.904991,     0.038915  ], #25
-[ 0.98004,      0.106454  ], #26
-[ 0.490127,     0.203352  ], #27
-[ 0.490127,     0.307009  ], #28
-[ 0.490127,     0.409805  ], #29
-[ 0.490127,     0.515625  ], #30
-[ 0.36688,      0.587326  ], #31
-[ 0.426036,     0.609345  ], #32
-[ 0.490127,     0.628106  ], #33
-[ 0.554217,     0.609345  ], #34
-[ 0.613373,     0.587326  ], #35
-[ 0.121737,     0.216423  ], #36
-[ 0.187122,     0.178758  ], #37
-[ 0.265825,     0.179852  ], #38
-[ 0.334606,     0.231733  ], #39
-[ 0.260918,     0.245099  ], #40
-[ 0.182743,     0.244077  ], #41
-[ 0.645647,     0.231733  ], #42
-[ 0.714428,     0.179852  ], #43
-[ 0.793132,     0.178758  ], #44
-[ 0.858516,     0.216423  ], #45
-[ 0.79751,      0.244077  ], #46
-[ 0.719335,     0.245099  ], #47
-[ 0.254149,     0.780233  ], #48
-[ 0.726104,     0.780233  ], #54
-], dtype=np.float32)
+landmarks_2D = np.stack( [ mean_face_x, mean_face_y ], axis=1 )
 
 # 68 point landmark definitions
 landmarks_68_pt = { "mouth": (48,68),
@@ -183,63 +109,41 @@ landmarks_68_3D = np.array( [
 [0.205322    , 31.408738    , -21.903670  ],
 [-7.198266   , 30.844876    , -20.328022  ] ], dtype=np.float32)
 
-FaceType_to_padding_remove_align = {
-    FaceType.HALF: (0.0, False),
-    FaceType.MID_FULL: (0.0675, False),
-    FaceType.FULL: (0.2109375, False),
-    FaceType.FULL_NO_ALIGN: (0.2109375, True),
-    FaceType.HEAD: (0.369140625, False),
-    FaceType.HEAD_NO_ALIGN: (0.369140625, True),
-}
+def get_transform_mat (image_landmarks, output_size, face_type, scale=1.0):
+    if not isinstance(image_landmarks, np.ndarray):
+        image_landmarks = np.array (image_landmarks)
 
-def convert_98_to_68(lmrks):
-    #jaw
-    result = [ lmrks[0] ]
-    for i in range(2,16,2):
-        result += [ ( lmrks[i] + (lmrks[i-1]+lmrks[i+1])/2 ) / 2  ]
-    result += [ lmrks[16] ]
-    for i in range(18,32,2):
-        result += [ ( lmrks[i] + (lmrks[i-1]+lmrks[i+1])/2 ) / 2  ]
-    result += [ lmrks[32] ]
+    if face_type == FaceType.AVATAR:
+        centroid = np.mean (image_landmarks, axis=0)
 
-    #eyebrows averaging
-    result += [ lmrks[33],
-                (lmrks[34]+lmrks[41])/2,
-                (lmrks[35]+lmrks[40])/2,
-                (lmrks[36]+lmrks[39])/2,
-                (lmrks[37]+lmrks[38])/2,
-              ]
+        mat = umeyama(image_landmarks[17:], landmarks_2D, True)[0:2]
+        a, c = mat[0,0], mat[1,0]
+        scale = math.sqrt((a * a) + (c * c))
 
-    result += [ (lmrks[42]+lmrks[50])/2,
-                (lmrks[43]+lmrks[49])/2,
-                (lmrks[44]+lmrks[48])/2,
-                (lmrks[45]+lmrks[47])/2,
-                lmrks[46]
-              ]
+        padding = (output_size / 64) * 32
 
-    #nose
-    result += list ( lmrks[51:60] )
+        mat = np.eye ( 2,3 )
+        mat[0,2] = -centroid[0]
+        mat[1,2] = -centroid[1]
+        mat = mat * scale * (output_size / 3)
+        mat[:,2] += output_size / 2
+    else:
+        if face_type == FaceType.HALF:
+            padding = 0
+        elif face_type == FaceType.FULL:
+            padding = (output_size / 64) * 12
+        elif face_type == FaceType.HEAD:
+            padding = (output_size / 64) * 24
+        else:
+            raise ValueError ('wrong face_type: ', face_type)
 
-    #left eye (from our view)
-    result += [ lmrks[60],
-                lmrks[61],
-                lmrks[63],
-                lmrks[64],
-                lmrks[65],
-                lmrks[67] ]
+        mat = umeyama(image_landmarks[17:], landmarks_2D, True)[0:2]
+        mat = mat * (output_size - 2 * padding)
+        mat[:,2] += padding
+        mat *= (1 / scale)
+        mat[:,2] += -output_size*( ( (1 / scale) - 1.0 ) / 2 )
 
-    #right eye
-    result += [ lmrks[68],
-                lmrks[69],
-                lmrks[71],
-                lmrks[72],
-                lmrks[73],
-                lmrks[75] ]
-
-    #mouth
-    result += list ( lmrks[76:96] )
-
-    return np.concatenate (result).reshape ( (68,2) )
+    return mat
 
 def transform_points(points, mat, invert=False):
     if invert:
@@ -249,294 +153,67 @@ def transform_points(points, mat, invert=False):
     points = np.squeeze(points)
     return points
 
-def get_transform_mat (image_landmarks, output_size, face_type, scale=1.0):
-    if not isinstance(image_landmarks, np.ndarray):
-        image_landmarks = np.array (image_landmarks)
 
-    # estimate landmarks transform from global space to local aligned space with bounds [0..1]
-    mat = umeyama( np.concatenate ( [ image_landmarks[17:49] , image_landmarks[54:55] ] ) , landmarks_2D_new, True)[0:2]
-    
-    # get corner points in global space
-    l_p = transform_points (  np.float32([(0,0),(1,0),(1,1),(0,1),(0.5,0.5)]) , mat, True)
-    l_c = l_p[4]
+def get_image_hull_mask (image_shape, image_landmarks, ie_polys=None):
+    if len(image_landmarks) != 68:
+        raise Exception('get_image_hull_mask works only with 68 landmarks')
+    int_lmrks = np.array(image_landmarks, dtype=np.int)
 
-    # calc diagonal vectors between corners in global space
-    tb_diag_vec = (l_p[2]-l_p[0]).astype(np.float32)
-    tb_diag_vec /= npla.norm(tb_diag_vec)
-    bt_diag_vec = (l_p[1]-l_p[3]).astype(np.float32)
-    bt_diag_vec /= npla.norm(bt_diag_vec)
-
-    # calc modifier of diagonal vectors for scale and padding value
-    padding, remove_align = FaceType_to_padding_remove_align.get(face_type, 0.0)
-    mod = (1.0 / scale)* ( npla.norm(l_p[0]-l_p[2])*(padding*np.sqrt(2.0) + 0.5) )
-    
-    # calc 3 points in global space to estimate 2d affine transform 
-    if not remove_align:
-        l_t = np.array( [ np.round( l_c - tb_diag_vec*mod ),
-                          np.round( l_c + bt_diag_vec*mod ),
-                          np.round( l_c + tb_diag_vec*mod ) ] )
-    else:
-        # remove_align - face will be centered in the frame but not aligned
-        l_t = np.array( [ np.round( l_c - tb_diag_vec*mod ),
-                          np.round( l_c + bt_diag_vec*mod ),
-                          np.round( l_c + tb_diag_vec*mod ),
-                          np.round( l_c - bt_diag_vec*mod ),
-                         ] )
-
-        # get area of face square in global space
-        area = mathlib.polygon_area(l_t[:,0], l_t[:,1] )
-        
-        # calc side of square
-        side = np.float32(math.sqrt(area) / 2)
-        
-        # calc 3 points with unrotated square
-        l_t = np.array( [ np.round( l_c + [-side,-side] ),
-                          np.round( l_c + [ side,-side] ),
-                          np.round( l_c + [ side, side] ) ] )
-
-    # calc affine transform from 3 global space points to 3 local space points size of 'output_size'
-    pts2 = np.float32(( (0,0),(output_size,0),(output_size,output_size) ))
-    mat = cv2.getAffineTransform(l_t,pts2)
-    return mat
-  
-def expand_eyebrows(lmrks, eyebrows_expand_mod=1.0):
-    if len(lmrks) != 68:
-        raise Exception('works only with 68 landmarks')
-    lmrks = np.array( lmrks.copy(), dtype=np.int )
-
-    # #nose
-    ml_pnt = (lmrks[36] + lmrks[0]) // 2
-    mr_pnt = (lmrks[16] + lmrks[45]) // 2
-
-    # mid points between the mid points and eye
-    ql_pnt = (lmrks[36] + ml_pnt) // 2
-    qr_pnt = (lmrks[45] + mr_pnt) // 2
-
-    # Top of the eye arrays
-    bot_l = np.array((ql_pnt, lmrks[36], lmrks[37], lmrks[38], lmrks[39]))
-    bot_r = np.array((lmrks[42], lmrks[43], lmrks[44], lmrks[45], qr_pnt))
-
-    # Eyebrow arrays
-    top_l = lmrks[17:22]
-    top_r = lmrks[22:27]
-
-    # Adjust eyebrow arrays
-    lmrks[17:22] = top_l + eyebrows_expand_mod * 0.5 * (top_l - bot_l)
-    lmrks[22:27] = top_r + eyebrows_expand_mod * 0.5 * (top_r - bot_r)
-    return lmrks
-
-
-
-
-def get_image_hull_mask (image_shape, image_landmarks, eyebrows_expand_mod=1.0, ie_polys=None ):
     hull_mask = np.zeros(image_shape[0:2]+(1,),dtype=np.float32)
 
-    lmrks = expand_eyebrows(image_landmarks, eyebrows_expand_mod)
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[0:9],
+                              int_lmrks[17:18]))) , (1,)  )
 
-    r_jaw = (lmrks[0:9], lmrks[17:18])
-    l_jaw = (lmrks[8:17], lmrks[26:27])
-    r_cheek = (lmrks[17:20], lmrks[8:9])
-    l_cheek = (lmrks[24:27], lmrks[8:9])
-    nose_ridge = (lmrks[19:25], lmrks[8:9],)
-    r_eye = (lmrks[17:22], lmrks[27:28], lmrks[31:36], lmrks[8:9])
-    l_eye = (lmrks[22:27], lmrks[27:28], lmrks[31:36], lmrks[8:9])
-    nose = (lmrks[27:31], lmrks[31:36])
-    parts = [r_jaw, l_jaw, r_cheek, l_cheek, nose_ridge, r_eye, l_eye, nose]
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[8:17],
+                              int_lmrks[26:27]))) , (1,)  )
 
-    for item in parts:
-        merged = np.concatenate(item)
-        cv2.fillConvexPoly(hull_mask, cv2.convexHull(merged), (1,) )
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[17:20],
+                              int_lmrks[8:9]))) , (1,)  )
+
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[24:27],
+                              int_lmrks[8:9]))) , (1,)  )
+
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[19:25],
+                              int_lmrks[8:9],
+                              ))) , (1,)  )
+
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[17:22],
+                              int_lmrks[27:28],
+                              int_lmrks[31:36],
+                              int_lmrks[8:9]
+                              ))) , (1,)  )
+
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(
+            np.concatenate ( (int_lmrks[22:27],
+                              int_lmrks[27:28],
+                              int_lmrks[31:36],
+                              int_lmrks[8:9]
+                              ))) , (1,)  )
+
+    #nose
+    cv2.fillConvexPoly( hull_mask, cv2.convexHull(int_lmrks[27:36]), (1,) )
 
     if ie_polys is not None:
         ie_polys.overlay_mask(hull_mask)
 
     return hull_mask
-    
+
 def get_image_eye_mask (image_shape, image_landmarks):
     if len(image_landmarks) != 68:
         raise Exception('get_image_eye_mask works only with 68 landmarks')
-    
-    h,w,c = image_shape
 
-    hull_mask = np.zeros( (h,w,1),dtype=np.float32)
-    
-    image_landmarks = image_landmarks.astype(np.int)
+    hull_mask = np.zeros(image_shape[0:2]+(1,),dtype=np.float32)
 
     cv2.fillConvexPoly( hull_mask, cv2.convexHull( image_landmarks[36:42]), (1,) )
     cv2.fillConvexPoly( hull_mask, cv2.convexHull( image_landmarks[42:48]), (1,) )
 
-    dilate = h // 32
-    hull_mask = cv2.dilate(hull_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(dilate,dilate)), iterations = 1 )
-    
-    blur = h // 16
-    blur = blur + (1-blur % 2)
-    hull_mask = cv2.GaussianBlur(hull_mask, (blur, blur) , 0)
-    hull_mask = hull_mask[...,None]
-
     return hull_mask
-
-
-def alpha_to_color (img_alpha, color):
-    if len(img_alpha.shape) == 2:
-        img_alpha = img_alpha[...,None]
-    h,w,c = img_alpha.shape
-    result = np.zeros( (h,w, len(color) ), dtype=np.float32 )
-    result[:,:] = color
-
-    return result * img_alpha
-
-
-
-def get_cmask (image_shape, lmrks, eyebrows_expand_mod=1.0):
-    h,w,c = image_shape
-
-    hull = get_image_hull_mask (image_shape, lmrks, eyebrows_expand_mod )
-
-    result = np.zeros( (h,w,3), dtype=np.float32 )
-
-
-
-    def process(w,h, data ):
-        d = {}
-        cur_lc = 0
-        all_lines = []
-        for s, pts_loop_ar in data:
-            lines = []
-            for pts, loop in pts_loop_ar:
-                pts_len = len(pts)
-                lines.append ( [ [ pts[i], pts[(i+1) % pts_len ] ]  for i in range(pts_len - (0 if loop else 1) ) ] )
-            lines = np.concatenate (lines)
-
-            lc = lines.shape[0]
-            all_lines.append(lines)
-            d[s] = cur_lc, cur_lc+lc
-            cur_lc += lc
-        all_lines = np.concatenate (all_lines, 0)
-
-        #calculate signed distance for all points and lines
-        line_count = all_lines.shape[0]
-        pts_count = w*h
-
-        all_lines = np.repeat ( all_lines[None,...], pts_count, axis=0 ).reshape ( (pts_count*line_count,2,2) )
-
-        pts = np.empty( (h,w,line_count,2), dtype=np.float32 )
-        pts[...,1] = np.arange(h)[:,None,None]
-        pts[...,0] = np.arange(w)[:,None]
-        pts = pts.reshape ( (h*w*line_count, -1) )
-
-        a = all_lines[:,0,:]
-        b = all_lines[:,1,:]
-        pa = pts-a
-        ba = b-a
-        ph = np.clip ( np.einsum('ij,ij->i', pa, ba) / np.einsum('ij,ij->i', ba, ba), 0, 1 )
-        dists = npla.norm ( pa - ba*ph[...,None], axis=1).reshape ( (h,w,line_count) )
-
-        def get_dists(name, thickness=0):
-            s,e = d[name]
-            result = dists[...,s:e]
-            if thickness != 0:
-                result = np.abs(result)-thickness
-            return np.min (result, axis=-1)
-
-        return get_dists
-
-    l_eye = lmrks[42:48]
-    r_eye = lmrks[36:42]
-    l_brow = lmrks[22:27]
-    r_brow = lmrks[17:22]
-    mouth = lmrks[48:60]
-
-    up_nose = np.concatenate( (lmrks[27:31], lmrks[33:34]) )
-    down_nose = lmrks[31:36]
-    nose = np.concatenate ( (up_nose, down_nose) )
-
-    gdf = process ( w,h,
-                         (
-                          ('eyes',  ((l_eye, True), (r_eye, True)) ),
-                          ('brows', ((l_brow, False), (r_brow,False)) ),
-                          ('up_nose', ((up_nose, False),) ),
-                          ('down_nose', ((down_nose, False),) ),
-                          ('mouth', ((mouth, True),) ),
-                         )
-                        )
-
-    eyes_fall_dist = w // 32
-    eyes_thickness = max( w // 64, 1 )
-
-    brows_fall_dist = w // 32
-    brows_thickness = max( w // 256, 1 )
-
-    nose_fall_dist = w / 12
-    nose_thickness = max( w // 96, 1 )
-
-    mouth_fall_dist = w // 32
-    mouth_thickness = max( w // 64, 1 )
-
-    eyes_mask = gdf('eyes',eyes_thickness)
-    eyes_mask = 1-np.clip( eyes_mask/ eyes_fall_dist, 0, 1)
-    #eyes_mask = np.clip ( 1- ( np.sqrt( np.maximum(eyes_mask,0) ) / eyes_fall_dist ), 0, 1)
-    #eyes_mask = np.clip ( 1- ( np.cbrt( np.maximum(eyes_mask,0) ) / eyes_fall_dist ), 0, 1)
-
-    brows_mask = gdf('brows', brows_thickness)
-    brows_mask = 1-np.clip( brows_mask / brows_fall_dist, 0, 1)
-    #brows_mask = np.clip ( 1- ( np.sqrt( np.maximum(brows_mask,0) ) / brows_fall_dist ), 0, 1)
-
-    mouth_mask = gdf('mouth', mouth_thickness)
-    mouth_mask = 1-np.clip( mouth_mask / mouth_fall_dist, 0, 1)
-    #mouth_mask = np.clip ( 1- ( np.sqrt( np.maximum(mouth_mask,0) ) / mouth_fall_dist ), 0, 1)
-
-    def blend(a,b,k):
-        x = np.clip ( 0.5+0.5*(b-a)/k, 0.0, 1.0 )
-        return (a-b)*x+b - k*x*(1.0-x)
-
-
-    #nose_mask = (a-b)*x+b - k*x*(1.0-x)
-
-    #nose_mask = np.minimum (up_nose_mask , down_nose_mask )
-    #nose_mask = 1-np.clip( nose_mask / nose_fall_dist, 0, 1)
-
-    nose_mask = blend ( gdf('up_nose', nose_thickness), gdf('down_nose', nose_thickness), nose_thickness*3 )
-    nose_mask = 1-np.clip( nose_mask / nose_fall_dist, 0, 1)
-
-    up_nose_mask = gdf('up_nose', nose_thickness)
-    up_nose_mask = 1-np.clip( up_nose_mask / nose_fall_dist, 0, 1)
-    #up_nose_mask = np.clip ( 1- ( np.cbrt( np.maximum(up_nose_mask,0) ) / nose_fall_dist ), 0, 1)
-
-    down_nose_mask = gdf('down_nose', nose_thickness)
-    down_nose_mask = 1-np.clip( down_nose_mask / nose_fall_dist, 0, 1)
-    #down_nose_mask = np.clip ( 1- ( np.cbrt( np.maximum(down_nose_mask,0) ) / nose_fall_dist ), 0, 1)
-
-    #nose_mask = np.clip( up_nose_mask + down_nose_mask, 0, 1 )
-    #nose_mask /= np.max(nose_mask)
-    #nose_mask = np.maximum (up_nose_mask , down_nose_mask )
-    #nose_mask = down_nose_mask
-
-    #nose_mask = np.zeros_like(nose_mask)
-
-    eyes_mask = eyes_mask * (1-mouth_mask)
-    nose_mask = nose_mask * (1-eyes_mask)
-
-    hull_mask = hull[...,0].copy()
-    hull_mask = hull_mask * (1-eyes_mask) * (1-brows_mask) * (1-nose_mask) * (1-mouth_mask)
-
-    #eyes_mask = eyes_mask * (1-nose_mask)
-
-    mouth_mask= mouth_mask * (1-nose_mask)
-
-    brows_mask = brows_mask * (1-nose_mask)* (1-eyes_mask )
-
-    hull_mask = alpha_to_color(hull_mask, (0,1,0) )
-    eyes_mask = alpha_to_color(eyes_mask, (1,0,0) )
-    brows_mask = alpha_to_color(brows_mask, (0,0,1) )
-    nose_mask = alpha_to_color(nose_mask, (0,1,1) )
-    mouth_mask = alpha_to_color(mouth_mask, (0,0,1) )
-
-    #nose_mask = np.maximum( up_nose_mask, down_nose_mask )
-
-    result = hull_mask + mouth_mask+ nose_mask + brows_mask  + eyes_mask
-    result *= hull
-    #result = np.clip (result, 0, 1)
-    return result
 
 def blur_image_hull_mask (hull_mask):
 
@@ -601,13 +278,7 @@ def mirror_landmarks (landmarks, val):
     result[:,0] = val - result[:,0] - 1
     return result
 
-def get_face_struct_mask (image_shape, image_landmarks, eyebrows_expand_mod=1.0, ie_polys=None, color=(1,) ):
-    mask = np.zeros(image_shape[0:2]+( len(color),),dtype=np.float32)
-    lmrks = expand_eyebrows(image_landmarks, eyebrows_expand_mod)
-    draw_landmarks (mask, image_landmarks, color=color, draw_circles=False, thickness=2, ie_polys=ie_polys)    
-    return mask
-    
-def draw_landmarks (image, image_landmarks, color=(0,255,0), draw_circles=True, thickness=1, transparent_mask=False, ie_polys=None):
+def draw_landmarks (image, image_landmarks, color=(0,255,0), transparent_mask=False, ie_polys=None):
     if len(image_landmarks) != 68:
         raise Exception('get_image_eye_mask works only with 68 landmarks')
 
@@ -623,32 +294,27 @@ def draw_landmarks (image, image_landmarks, color=(0,255,0), draw_circles=True, 
 
     # open shapes
     cv2.polylines(image, tuple(np.array([v]) for v in ( right_eyebrow, jaw, left_eyebrow, np.concatenate((nose, [nose[-6]])) )),
-                  False, color, thickness=thickness, lineType=cv2.LINE_AA)
+                  False, color, lineType=cv2.LINE_AA)
     # closed shapes
     cv2.polylines(image, tuple(np.array([v]) for v in (right_eye, left_eye, mouth)),
-                  True, color, thickness=thickness, lineType=cv2.LINE_AA)
-                  
-    if draw_circles:
-        # the rest of the cicles
-        for x, y in np.concatenate((right_eyebrow, left_eyebrow, mouth, right_eye, left_eye, nose), axis=0):
-            cv2.circle(image, (x, y), 1, color, 1, lineType=cv2.LINE_AA)
-        # jaw big circles
-        for x, y in jaw:
-            cv2.circle(image, (x, y), 2, color, lineType=cv2.LINE_AA)
+                  True, color, lineType=cv2.LINE_AA)
+    # the rest of the cicles
+    for x, y in np.concatenate((right_eyebrow, left_eyebrow, mouth, right_eye, left_eye, nose), axis=0):
+        cv2.circle(image, (x, y), 1, color, 1, lineType=cv2.LINE_AA)
+    # jaw big circles
+    for x, y in jaw:
+        cv2.circle(image, (x, y), 2, color, lineType=cv2.LINE_AA)
 
     if transparent_mask:
-        mask = get_image_hull_mask (image.shape, image_landmarks, ie_polys=ie_polys)
+        mask = get_image_hull_mask (image.shape, image_landmarks, ie_polys)
         image[...] = ( image * (1-mask) + image * mask / 2 )[...]
 
-def draw_rect_landmarks (image, rect, image_landmarks, face_size, face_type, transparent_mask=False, ie_polys=None, landmarks_color=(0,255,0)):
+def draw_rect_landmarks (image, rect, image_landmarks, face_size, face_type, transparent_mask=False, ie_polys=None, landmarks_color=(0,255,0) ):
     draw_landmarks(image, image_landmarks, color=landmarks_color, transparent_mask=transparent_mask, ie_polys=ie_polys)
     imagelib.draw_rect (image, rect, (255,0,0), 2 )
 
     image_to_face_mat = get_transform_mat (image_landmarks, face_size, face_type)
     points = transform_points ( [ (0,0), (0,face_size-1), (face_size-1, face_size-1), (face_size-1,0) ], image_to_face_mat, True)
-    imagelib.draw_polygon (image, points, (0,0,255), 2)
-
-    points = transform_points ( [ ( int(face_size*0.05), 0), ( int(face_size*0.1), int(face_size*0.1) ), ( 0, int(face_size*0.1) ) ], image_to_face_mat, True)
     imagelib.draw_polygon (image, points, (0,0,255), 2)
 
 def calc_face_pitch(landmarks):
@@ -665,10 +331,8 @@ def calc_face_yaw(landmarks):
     r = ( (landmarks[16][0]-landmarks[27][0]) + (landmarks[15][0]-landmarks[28][0]) + (landmarks[14][0]-landmarks[29][0]) ) / 3.0
     return float(r-l)
 
+#returns pitch,yaw,roll [-1...+1]
 def estimate_pitch_yaw_roll(aligned_256px_landmarks):
-    """
-    returns pitch,yaw,roll [-pi...+pi]
-    """
     shape = (256,256)
     focal_length = shape[1]
     camera_center = (shape[1] / 2, shape[0] / 2)
@@ -684,138 +348,7 @@ def estimate_pitch_yaw_roll(aligned_256px_landmarks):
         np.zeros((4, 1)) )
 
     pitch, yaw, roll = mathlib.rotationMatrixToEulerAngles( cv2.Rodrigues(rotation_vector)[0] )
-    pitch = np.clip ( pitch, -math.pi, math.pi )
-    yaw = np.clip ( yaw , -math.pi, math.pi )
-    roll = np.clip ( roll, -math.pi, math.pi )
-
+    pitch = np.clip ( pitch/1.30, -1.0, 1.0 )
+    yaw = np.clip ( yaw / 1.11, -1.0, 1.0 )
+    roll = np.clip ( roll/3.15, -1.0, 1.0 )
     return -pitch, yaw, roll
-
-
-#if remove_align:
-#    bbox = transform_points ( [ (0,0), (0,output_size), (output_size, output_size), (output_size,0) ], mat, True)
-#    #import code
-#    #code.interact(local=dict(globals(), **locals()))
-#    area = mathlib.polygon_area(bbox[:,0], bbox[:,1] )
-#    side = math.sqrt(area) / 2
-#    center = transform_points ( [(output_size/2,output_size/2)], mat, True)
-#    pts1 = np.float32(( center+[-side,-side], center+[side,-side], center+[side,-side] ))
-#    pts2 = np.float32([[0,0],[output_size,0],[0,output_size]])
-#    mat = cv2.getAffineTransform(pts1,pts2)
-#if full_face_align_top and (face_type == FaceType.FULL or face_type == FaceType.FULL_NO_ALIGN):
-#    #lmrks2 = expand_eyebrows(image_landmarks)
-#    #lmrks2_ = transform_points( [ lmrks2[19], lmrks2[24] ], mat, False )
-#    #y_diff = np.float32( (0,np.min(lmrks2_[:,1])) )
-#    #y_diff = transform_points( [ np.float32( (0,0) ), y_diff], mat, True)
-#    #y_diff = y_diff[1]-y_diff[0]
-#
-#    x_diff = np.float32((0,0))
-#
-#    lmrks2_ = transform_points( [ image_landmarks[0], image_landmarks[16] ], mat, False )
-#    if lmrks2_[0,0] < 0:
-#        x_diff = lmrks2_[0,0]
-#        x_diff = transform_points( [ np.float32( (0,0) ), np.float32((x_diff,0)) ], mat, True)
-#        x_diff = x_diff[1]-x_diff[0]
-#    elif lmrks2_[1,0] >= output_size:
-#        x_diff = lmrks2_[1,0]-(output_size-1)
-#        x_diff = transform_points( [ np.float32( (0,0) ), np.float32((x_diff,0)) ], mat, True)
-#        x_diff = x_diff[1]-x_diff[0]
-#
-#    mat = cv2.getAffineTransform( l_t+y_diff+x_diff ,pts2)
-
-
-"""
-def get_averaged_transform_mat (img_landmarks, 
-                                img_landmarks_prev, 
-                                img_landmarks_next, 
-                                average_frame_count, 
-                                average_center_frame_count,
-                                output_size, face_type, scale=1.0):
-    
-    l_c_list = []
-    tb_diag_vec_list = []
-    bt_diag_vec_list = []
-    mod_list = []
-    
-    count = max(average_frame_count,average_center_frame_count)
-    for i in range ( -count, count+1, 1 ):        
-        if i < 0:
-            lmrks = img_landmarks_prev[i] if -i < len(img_landmarks_prev) else None
-        elif i > 0:
-            lmrks = img_landmarks_next[i] if i < len(img_landmarks_next) else None
-        else:
-            lmrks = img_landmarks
-        
-        if lmrks is None:
-            continue
-        
-        l_c, tb_diag_vec, bt_diag_vec, mod = get_transform_mat_data (lmrks, face_type, scale=scale)
-        
-        if i >= -average_frame_count and i <= average_frame_count:
-            tb_diag_vec_list.append(tb_diag_vec)
-            bt_diag_vec_list.append(bt_diag_vec)
-            mod_list.append(mod)
-            
-        if i >= -average_center_frame_count and i <= average_center_frame_count:
-            l_c_list.append(l_c)
-    
-    tb_diag_vec = np.mean( np.array(tb_diag_vec_list), axis=0 )
-    bt_diag_vec = np.mean( np.array(bt_diag_vec_list), axis=0 )
-    mod         = np.mean( np.array(mod_list), axis=0 )    
-    l_c         = np.mean( np.array(l_c_list), axis=0 )
-
-    return get_transform_mat_by_data (l_c, tb_diag_vec, bt_diag_vec, mod, output_size, face_type)
-    
-    
-def get_transform_mat (image_landmarks, output_size, face_type, scale=1.0):
-    if not isinstance(image_landmarks, np.ndarray):
-        image_landmarks = np.array (image_landmarks)
-
-    # get face padding value for FaceType
-    padding, remove_align = FaceType_to_padding_remove_align.get(face_type, 0.0)
-
-    # estimate landmarks transform from global space to local aligned space with bounds [0..1]
-    mat = umeyama( np.concatenate ( [ image_landmarks[17:49] , image_landmarks[54:55] ] ) , landmarks_2D_new, True)[0:2]
-    
-    # get corner points in global space
-    l_p = transform_points (  np.float32([(0,0),(1,0),(1,1),(0,1),(0.5,0.5)]) , mat, True)
-    l_c = l_p[4]
-
-    # calc diagonal vectors between corners in global space
-    tb_diag_vec = (l_p[2]-l_p[0]).astype(np.float32)
-    tb_diag_vec /= npla.norm(tb_diag_vec)
-    bt_diag_vec = (l_p[1]-l_p[3]).astype(np.float32)
-    bt_diag_vec /= npla.norm(bt_diag_vec)
-
-    # calc modifier of diagonal vectors for scale and padding value
-    mod = (1.0 / scale)* ( npla.norm(l_p[0]-l_p[2])*(padding*np.sqrt(2.0) + 0.5) )
-
-    # calc 3 points in global space to estimate 2d affine transform 
-    if not remove_align:
-        l_t = np.array( [ np.round( l_c - tb_diag_vec*mod ),
-                          np.round( l_c + bt_diag_vec*mod ),
-                          np.round( l_c + tb_diag_vec*mod ) ] )
-    else:
-        # remove_align - face will be centered in the frame but not aligned
-        l_t = np.array( [ np.round( l_c - tb_diag_vec*mod ),
-                          np.round( l_c + bt_diag_vec*mod ),
-                          np.round( l_c + tb_diag_vec*mod ),
-                          np.round( l_c - bt_diag_vec*mod ),
-                         ] )
-
-        # get area of face square in global space
-        area = mathlib.polygon_area(l_t[:,0], l_t[:,1] )
-        
-        # calc side of square
-        side = np.float32(math.sqrt(area) / 2)
-        
-        # calc 3 points with unrotated square
-        l_t = np.array( [ np.round( l_c + [-side,-side] ),
-                          np.round( l_c + [ side,-side] ),
-                          np.round( l_c + [ side, side] ) ] )
-
-    # calc affine transform from 3 global space points to 3 local space points size of 'output_size'
-    pts2 = np.float32(( (0,0),(output_size,0),(output_size,output_size) ))
-    mat = cv2.getAffineTransform(l_t,pts2)
-    
-    return mat
-"""

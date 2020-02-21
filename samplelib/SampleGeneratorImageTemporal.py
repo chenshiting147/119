@@ -1,12 +1,10 @@
 import traceback
-
-import cv2
 import numpy as np
+import cv2
 
-from core.joblib import SubprocessGenerator, ThisThreadGenerator
-from samplelib import (SampleGeneratorBase, SampleLoader, SampleProcessor,
-                       SampleType)
+from utils import iter_utils
 
+from samplelib import SampleType, SampleProcessor, SampleLoader, SampleGeneratorBase
 
 '''
 output_sample_types = [
@@ -45,8 +43,7 @@ class SampleGeneratorImageTemporal(SampleGeneratorBase):
             raise ValueError('No training data provided.')
 
         mult_max = 4
-        samples_sub_len = samples_len - ( (self.temporal_image_count)*mult_max - (mult_max-1)  )
-
+        samples_sub_len = samples_len - (self.temporal_image_count-1)*mult_max 
         if samples_sub_len <= 0:
             raise ValueError('Not enough samples to fit temporal line.')
 
@@ -64,11 +61,11 @@ class SampleGeneratorImageTemporal(SampleGeneratorBase):
                 idx = shuffle_idxs.pop()
 
                 temporal_samples = []
-                mult = np.random.randint(mult_max)+1
+                mult = np.random.randint(mult_max)
                 for i in range( self.temporal_image_count ):
                     sample = samples[ idx+i*mult ]
                     try:
-                        temporal_samples += SampleProcessor.process ([sample], self.sample_process_options, self.output_sample_types, self.debug)[0]
+                        temporal_samples += SampleProcessor.process (sample, self.sample_process_options, self.output_sample_types, self.debug)
                     except:
                         raise Exception ("Exception occured in sample %s. Error: %s" % (sample.filename, traceback.format_exc() ) )
 

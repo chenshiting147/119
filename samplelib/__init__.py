@@ -4,7 +4,5 @@ from .SampleLoader import SampleLoader
 from .SampleProcessor import SampleProcessor
 from .SampleGeneratorBase import SampleGeneratorBase
 from .SampleGeneratorFace import SampleGeneratorFace
-from .SampleGeneratorFacePerson import SampleGeneratorFacePerson
 from .SampleGeneratorFaceTemporal import SampleGeneratorFaceTemporal
 from .SampleGeneratorImageTemporal import SampleGeneratorImageTemporal
-from .PackedFaceset import PackedFaceset
